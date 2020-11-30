@@ -1,0 +1,273 @@
+<html>
+
+<!-- 
+    - Task for KocFinans job interview -
+    @author: https://github.com/yilmazhasan
+    @date: 30.11.2020
+ -->
+
+<head>
+    <script src="https://unpkg.com/react@16/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@16/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6.15.0/babel.min.js"></script>
+
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+  
+
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        class Page extends React.Component {
+            
+            constructor(props) {
+                super(props);
+                this.creditResponseCallback = this.creditResponseCallback.bind(this);
+                this.reset = this.reset.bind(this);
+                this.userFormRef = React.createRef();
+                this.env = 'prod';
+                this.api_end_point = this.env == 'local' ? 'http://localhost:8080' : 'https://credit-limit-check.herokuapp.com';
+            }
+
+            reset() {
+                // re-produce the number to be predicted
+                this.forceUpdate();
+                this.clearInput();
+            }
+
+            clearInput() {
+                this.userFormRef.current.clearInput();
+            }
+
+            creditResponseCallback(resp) {
+                this.resp = resp;
+                // console.log(data);
+                this.forceUpdate();
+            }
+
+            render() {
+
+                return (
+                    <div id="container">
+                        <button className="btn btn-rst" onClick={this.reset}> Reset </button>
+                        <UserForm action={this.api_end_point + '/credit/check'} key='user-form' ref={this.userFormRef} creditResponseCallback={this.creditResponseCallback} />
+                        <Alert resp={this.resp} ></Alert>
+                    </div>
+                );
+            }
+        }
+
+        class Alert extends React.Component {
+            constructor(props) {
+                super(props);
+            }
+
+            render () {
+                const smsSentInfo = ()=>{
+                    if(this.props.resp) {
+                        if(this.props.resp.smsSent == 'true'){
+                            return <span>SMS sent to phone number!</span>
+                        } else if (this.props.resp.smsSent == 'false'){
+                            return <span> Phone number is not valid! <strong>SMS could not be sent! </strong></span>
+                        }
+                    } else {
+                            return <span></span>
+                    }
+                }
+
+                const statusInfo = ()=>{
+                    if(this.props.resp) {
+                        if(this.props.resp.status == 'accept'){
+                            return <span> 
+                                    <strong>Successfull!</strong> Your request has been approved! <br/> 
+                                    <strong>{this.props.resp.amount} TL is assigned as your new limit!</strong> 
+                                </span>
+                         } else if (this.props.resp.status == 'reject'){
+                            return <span> 
+                                        <strong>Unfortunately!</strong> Your request has not been approved!
+                                    </span>
+                        }
+                    } else {
+                        return <span> 
+                                    Let's see your chance.&nbsp;<strong> Your request needs to be sent! </strong>
+                                </span>
+                    }
+                }
+                console.log("Logging from Alert Render: ", this.props.resp)
+                const getClassName = () => {
+                    return !this.props.resp ? "alert-warning" : (this.props.resp && this.props.resp.status == 'accept' ? "alert-success" : "alert-danger");
+                } 
+                return(<div className={"alert alert-dismissible " + getClassName()}>
+                        {statusInfo()}
+                        <br/>
+                        {smsSentInfo()}
+                    </div>)
+            }
+
+        }
+
+        class UserForm extends React.Component {
+            constructor(props) {
+                super(props);
+                this.onSubmit = this.onSubmit.bind(this);
+            }
+
+            clearInput() {
+                console.log("clearing input")
+                // delete old value
+                let inps = document.getElementsByTagName("input");
+                for(let i = 0; i < inps.length; i++){
+                    inps[i].value = "";
+                }
+            }
+
+            onSubmit() {
+                // console.log("vals: ", this.fullname, this.tckn, this.salary, this.phone);
+
+                this.fullname = typeof(this.fullname) === 'object' ? this.fullname.value: this.fullname;
+                this.tckn = typeof(this.tckn) === 'object' ? this.tckn.value : this.tckn;
+                this.salary = typeof(this.salary) === 'object' ? this.salary.value : this.salary;
+                this.phone = typeof(this.phone) === 'object' ? this.phone.value : this.phone;
+
+                let body = {fullname:this.fullname, tckn:this.tckn, income:this.salary, phone:this.phone}; 
+
+                const requestOptions = {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                };
+
+                fetch(this.props.action, requestOptions)
+                    .then(response => response.json())
+                    .then(data => {
+                        this.setState({ postId: data.id });
+                        const smsSent = data.smsSent; 
+                        this.props.creditResponseCallback(data);
+                        });
+
+                // this.props.oldPredictions.unshift({ predNum, match });
+                // this.clearInput();
+
+            }
+
+            render() {
+                this.predNum = 0;
+                this.pred = {};
+                return (
+                    <form >
+                        <label>Fullname:</label><br/>
+                        <input className="inp" placeholder="Write..." type="text" onChange={e => this.fullname = e.target.value} 
+                            ref={(c) => this.fullname = c} name="full-name" id="full-name" />
+                        <br/>
+                        <label>Tckn:</label><br/>
+                        <input className="inp" placeholder="Write..." type="text" onChange={e => this.tckn = e.target.value} 
+                            ref={(c) => this.tckn = c} name="tckn" id="tckn" />
+                        <br/>
+                        <label>Salary:</label><br/>
+                        <input className="inp" placeholder="Write..." type="number" onChange={e => this.salary = e.target.value} 
+                            ref={(c) => this.salary = c} name="salary" id="salary" />
+                        <br/>
+                        <label>Phone:</label><br/>
+                        <input className="inp" placeholder="Write..." type="text" onChange={e => this.phone = e.target.value} 
+                            ref={(c) => this.phone = c} name="phone" id="phone" />
+                        <br/>
+                        <button className="btn btn-try" type="button" onClick={this.onSubmit}><span>Submit</span></button>
+                    </form>
+
+                );
+            }
+        }
+
+        ReactDOM.render(
+            <Page />,
+            document.getElementById("root")
+        );
+
+    </script>
+</body>
+
+<style>
+    #root {
+        width: 50%;
+        margin: 10% 25%;
+    }
+
+    .inp {
+        padding: 8px;
+        display: block;
+        border: none;
+        border-bottom: 1px solid #ccc;
+        width: 100%;
+        font: inherit;
+    }
+
+    .btn {
+        left: 35%;
+        position: relative;
+        cursor: pointer;
+        border: none;
+    }
+    
+    .btn-rst {
+        background-color: #e7e7e7;
+        color: black;
+        /* background-color: #4CAF50;  */
+        /* Green */
+        padding: 15px 32px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        margin: 4px 2px;
+        cursor: pointer;
+        -webkit-transition-duration: 0.4s; /* Safari */
+        transition-duration: 0.4s;
+    }
+    
+    .btn-rst:hover {
+      box-shadow: 0 12px 16px 0 rgba(0,0,0,0.24), 0 17px 50px 0 rgba(0,0,0,0.19);
+    }
+    
+    .btn-try {
+        display: inline-block;
+        border-radius: 4px;
+        /* background-color: #f4511e; */
+        color: #FFFFFF;
+        text-align: center;
+        /* font-size: 28px; */
+        padding: 10px;
+        /* width: 200px; */
+        transition: all 0.5s;
+        margin: 5px;
+        background-color: #4CAF50;
+        border-radius: 32px !important;
+    }
+    
+    .btn span {
+      cursor: pointer;
+      display: inline-block;
+      position: relative;
+      transition: 0.5s;
+    }
+    
+    .btn span:after {
+      content: '\00bb';
+      position: absolute;
+      opacity: 0;
+      top: 0;
+      right: -20px;
+      transition: 0.5s;
+    }
+    
+    .btn:hover span {
+      padding-right: 25px;
+    }
+    
+    .btn:hover span:after {
+      opacity: 1;
+      right: 0;
+    }
+</style>
+
+</html>
